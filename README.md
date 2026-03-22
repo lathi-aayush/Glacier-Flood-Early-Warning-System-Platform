@@ -10,6 +10,7 @@
 ## Table of contents
 
 - [Dashboard](#dashboard)
+- [Project Demo](project_demo/)
 - [The problem it addresses](#the-problem-it-addresses)
 - [What it does and does not do](#what-it-does-and-does-not-do)
 - [Tech stack](#tech-stack)
