@@ -44,6 +44,7 @@ Thumbs.db
 
 # Local-only
 *.local
+developing_way.md
 
 # Optional: keep prototypes / Cursor config out of new commits (already-tracked files stay until git rm --cached)
 stitch/
