@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+dist/
+
+# Environment & secrets (keep *.example tracked)
+.env
+**/.env
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Large / downloaded geodata (see README)
+data/dem/
+*.tif
+*.tiff
+*.hgt
+
+# Logs & caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# OS & editors
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+
+# Local-only
+*.local
+
+# Optional: keep prototypes / Cursor config out of new commits (already-tracked files stay until git rm --cached)
+stitch/
+docs/
+.cursor/
