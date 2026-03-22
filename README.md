@@ -1,5 +1,12 @@
 # GlacierGuard
 
+
+## Dashboard
+
+![GlacierGuard dashboard](project_images/dashboard.jpg)
+
+---
+
 ## Table of contents
 
 - [Dashboard](#dashboard)
@@ -8,12 +15,6 @@
 - [Tech stack](#tech-stack)
 - [How the system works](#how-the-system-works)
 - [References](#references)
-
----
-
-## Dashboard
-
-![GlacierGuard dashboard](project_images/dashboard.svg)
 
 ---
 
