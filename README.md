@@ -1,10 +1,63 @@
 # GlacierGuard
 
-Software pipeline for **glacial-lake screening**: ingest open EO and weather data, engineer time-window features, run **Isolation Forest** then **XGBoost + SHAP**, sketch **D8** downstream paths on **SRTM**, expose results via **FastAPI** and a **React + Leaflet** dashboard. Orchestration uses a **scheduler + job queue** (no Kafka in MVP).
+**GlacierGuard** is a software platform for **glacial-lake screening**: it combines open satellite data, weather archives, and terrain models to highlight **which lakes are changing in unusual ways**, **why the model thinks so** (explainable scores), and **which valleys lie downstream** on a map. The goal is **national-scale prioritisation**—not a drop-in replacement for instrumented early-warning systems that agencies run at specific sites.
 
 ---
 
-## Architecture
+## Who this README is for
+
+- **Visitors and reviewers** — Start with [What this project is](#what-this-project-is), [What it does and does not do](#what-it-does-and-does-not-do), and [Limitations](#limitations-you-should-know).
+- **Developers** — Jump to [What's in this repository](#whats-in-this-repository), [Tech stack](#tech-stack), and [Run locally](#run-locally).
+
+---
+
+## What this project is
+
+Mountain regions hold **many mapped glacial lakes**, but only a **small fraction** are continuously monitored in the field. GlacierGuard is designed as a **transparent screening layer**: it ingests repeatable, open inputs (for example Sentinel-2, coarse thermal data, historical weather, and SRTM elevation), builds **time-window features** per lake, and runs **Isolation Forest** (normal behaviour) plus **XGBoost with SHAP** (supervised triage where labels exist). **D8-style routing** on SRTM sketches **indicative downstream flow paths**—useful for context, not a full flood-inundation simulation.
+
+Results are meant to be served through a **FastAPI** backend and a **React + Leaflet** dashboard (orchestrated with a **scheduler + job queue**; Kafka is out of scope for the MVP).
+
+**Deeper background** (lake types, hazard mechanisms, honest gaps): [resources/information.md](resources/information.md).
+
+---
+
+## The problem it addresses
+
+- Large **inventories** of glacial lakes vs **sparse** continuous gauging and site-specific instrumentation.
+- Need for **repeatable, explainable** signals that teams can audit—not only a single risk number.
+- Need to connect **upstream change** with **downstream geography** for planning and communication, without claiming centimetre-accurate inundation maps from 30 m terrain alone.
+
+---
+
+## What it does and does not do
+
+| It aims to | It does not claim to |
+|------------|----------------------|
+| Flag lakes whose recent feature patterns look **anomalous** or **model-suspicious** relative to history and sparse event labels | Deliver **validated operational warnings** or replace **field-validated** early-warning deployments |
+| Show **drivers** of a score (e.g. SHAP) for **accountability** | Provide **continuous “real-time”** satellite movies of every lake (revisit, clouds, and processing lag apply) |
+| Draw **indicative** downstream paths from SRTM for **context** | Replace **hydrodynamic** inundation models or engineering-grade flood maps |
+| Support **prioritisation** (“where to look next”) | Guarantee **prediction** of a specific breach time or mechanism |
+
+---
+
+## Limitations you should know
+
+- **Satellite cadence** — Optical sensors like Sentinel-2 revisit on the order of **days**; clouds and snow interrupt time series.
+- **Labels** — Documented GLOF events are **sparse**; supervised models must be interpreted with care.
+- **Terrain routing** — **30 m SRTM** and **D8** flow paths are **indicators**, not calibrated flood extents.
+- **Exposure context** — If census or village layers are used, treat them as **relative / dated** context unless refreshed.
+
+---
+
+## How the system works (conceptual)
+
+1. **Schedule** periodic jobs (or trigger on new data) to fetch and preprocess inputs.
+2. **Build features** per lake over rolling windows (weather, area proxies, thermal context, etc.).
+3. **Score** with Isolation Forest (unlabelled “normal” periods) and XGBoost where positive/negative examples exist; attach **SHAP** for explanation.
+4. **Cache** simplified downstream polylines from the DEM where useful (e.g. by lake tier).
+5. **Publish** via API to the dashboard and optional channels (e.g. SMS stubs / Twilio).
+
+### Architecture (target pipeline)
 
 ```
 cron / scheduler → job queue + workers
@@ -21,44 +74,58 @@ Sentinel-2 L2A, MOD11A1, Open-Meteo, SRTM, (optional IMD / IoT)
 
 ---
 
+## What's in this repository
+
+| Area | Status |
+|------|--------|
+| [`frontend/`](frontend/) | **Present** — Vite + React + TypeScript, Leaflet, Tailwind; can run with demo data or point at an API. |
+| [`stitch/`](stitch/) | **Present** — Static HTML prototypes and the “Sub-Zero Sentinel” design reference. |
+| [`docs/phased-development.md`](docs/phased-development.md) | **Present** — Step-by-step plan to match Stitch in production React. |
+| [`resources/information.md`](resources/information.md) | **Present** — Domain context for pitches and documentation. |
+| `backend/`, `data/`, `notebooks/`, `docker-compose.yml` | **Planned** — Layout below matches the **intended** Python/PostGIS pipeline as it is added. |
+
+---
+
 ## Tech stack
 
 | Area | Choice |
 |------|--------|
 | API | Python 3.11, FastAPI |
-| Jobs | Cron/cloud scheduler + Celery or RQ + Redis, or DB-backed jobs |
+| Jobs | Cron / cloud scheduler + Celery or RQ + Redis, or DB-backed jobs |
 | DB | PostgreSQL + PostGIS |
 | ML | scikit-learn (Isolation Forest), XGBoost, SHAP |
 | Geo | GDAL, rasterio, pyproj; D8 routing on SRTM |
-| Frontend | React 18, Leaflet, Recharts |
+| Frontend | React, Vite, Leaflet |
 | Alerts | Twilio (optional) |
 
-**UI parity with Stitch:** static prototypes and design system live under [`stitch/`](stitch/); phase-wise plan to implement the same look in React is in [`docs/phased-development.md`](docs/phased-development.md).
+**UI parity with Stitch:** prototypes and design tokens live under [`stitch/`](stitch/); implementation phases are in [`docs/phased-development.md`](docs/phased-development.md).
 
-**Cursor Agent skills** (project): [`.cursor/skills/`](.cursor/skills/) — `glacierguard-backend`, `glacierguard-frontend-stitch`, `glacierguard-docs-and-pitch`.
+**Cursor Agent skills** (this repo): [`.cursor/skills/`](.cursor/skills/) — `glacierguard-backend`, `glacierguard-frontend-stitch`, `glacierguard-docs-and-pitch`.
 
 ---
 
 ## Repository layout (target)
 
+The tree below is the **intended** structure as the backend and data tooling land; today you will mainly see `frontend/`, `stitch/`, `docs/`, and `resources/`.
+
 ```
 .
 ├── backend/
 │   ├── api/              # FastAPI routes
-│   ├── ingestion/      # Fetchers → enqueue jobs
-│   ├── workers/        # Queue consumers: features, models, path cache
-│   ├── features/       # Rolling windows, joins to lake polygons
+│   ├── ingestion/        # Fetchers → enqueue jobs
+│   ├── workers/          # Queue consumers: features, models, path cache
+│   ├── features/         # Rolling windows, joins to lake polygons
 │   ├── models/
 │   │   ├── isolation_forest/
 │   │   └── xgboost/
-│   ├── simulation/     # D8 flood path / downstream linestrings
-│   └── alerts/         # SMS / stubs for push
+│   ├── simulation/       # D8 flood path / downstream linestrings
+│   └── alerts/           # SMS / stubs for push
 ├── frontend/
 │   └── src/              # components, map/, dashboard/
 ├── data/
 │   ├── dem/              # SRTM tiles (gitignored; download via script)
 │   ├── lakes/            # Lake polygons (e.g. GeoJSON)
-│   └── training/         # GLOF labels export (e.g. from Zenodo .ods → CSV)
+│   └── training/         # GLOF labels export (e.g. Zenodo .ods → CSV)
 ├── notebooks/            # Training / evaluation
 ├── resources/            # Reference notes (e.g. information.md)
 └── docker-compose.yml
@@ -78,7 +145,9 @@ Sentinel-2 L2A, MOD11A1, Open-Meteo, SRTM, (optional IMD / IoT)
 | Lake polygons | ISRO/ICIMOD inventory / your GeoJSON | AOI per lake |
 | Exposure (optional) | Census 2011 + open village GIS | Downstream context |
 
-**Feature table (Stage 2)** — implement these columns in `features/` (sources as available):
+### Feature table (Stage 2)
+
+Implement these columns in `features/` when the backend exists (sources as available):
 
 | Feature | Source | Window |
 |---------|--------|--------|
@@ -105,7 +174,25 @@ Set via environment variables or `.env` (document in `backend/` when added):
 
 ---
 
-## Local run (once scaffold exists)
+## Run locally
+
+### Frontend (works today)
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+`npm start` is an alias for the same Vite dev server. The dev server can bind to **all interfaces** (`vite` `server.host: true`). Your terminal prints **Network:** with a URL like `http://<your-LAN-IP>:5173/` — use that on phones or other PCs on the same Wi‑Fi. If nothing loads, allow **port 5173** in Windows Firewall (Inbound rule, TCP).
+
+**Frontend environment:** copy [`frontend/.env.example`](frontend/.env.example) to `frontend/.env` and set `VITE_API_BASE_URL` to your FastAPI origin (no trailing slash), e.g. `http://localhost:8000`. If unset, the UI uses offline demo data and does not call the network for lakes/alerts. When the URL is set, the dashboard and inventory load `GET /lakes`, and the alert log loads `GET /alerts`; failed requests fall back to demo data with an in-app toast.
+
+**Production build & preview:**
+
+```bash
+cd frontend && npm run build && npm run preview
+```
+
+### Backend pipeline (when the scaffold exists)
 
 ```bash
 docker compose up -d   # Postgres, Redis if used
@@ -118,13 +205,9 @@ python notebooks/train_xgboost.py
 cd backend && uvicorn api.main:app --reload
 ```
 
-```bash
-cd frontend && npm install && npm start
-```
+Adjust paths if your layout differs.
 
-`npm start` binds to **all interfaces** (`vite` `server.host: true`). Your terminal prints **Network:** with a URL like `http://<your-LAN-IP>:5173/` — use that on phones or other PCs on the same Wi‑Fi. If nothing loads, allow **port 5173** in Windows Firewall (Inbound rule, TCP).
-
-**Put `localhost:5173` on the Internet (one command):**
+### Put `localhost:5173` on the Internet (dev only)
 
 ```bash
 cd frontend && npm run online
@@ -132,9 +215,9 @@ cd frontend && npm run online
 
 This starts Vite **and** a [localtunnel](https://github.com/localtunnel/localtunnel) to port **5173**. In the terminal, find the **`tunnel`** line with `your url is: https://….loca.lt` — that link is your app online. Stop with **Ctrl+C** (both processes exit). Dev-only; no secrets. First visit may show a localtunnel click-through page.
 
-Alternatively: `npm start` in one terminal and `npm run tunnel` in another.
+Alternatively: `npm run dev` in one terminal and `npm run tunnel` in another.
 
-Alternative (often smoother): install [Cloudflare Tunnel (`cloudflared`)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/), then:
+Often smoother: install [Cloudflare Tunnel (`cloudflared`)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/), then:
 
 ```bash
 cd frontend && npm run tunnel:cf
@@ -144,20 +227,10 @@ That prints a `https://….trycloudflare.com` URL. Same caveats: dev-only, no se
 
 If the UI calls a local API (`VITE_API_BASE_URL`), you may need to allow the tunnel origin in FastAPI **CORS** or use a tunneled API URL too.
 
-**Frontend environment:** copy [`frontend/.env.example`](frontend/.env.example) to `frontend/.env` and set `VITE_API_BASE_URL` to your FastAPI origin (no trailing slash), e.g. `http://localhost:8000`. If unset, the UI uses offline demo data and still calls no network for lakes/alerts. When the URL is set, the dashboard and inventory load `GET /lakes`, and the alert log loads `GET /alerts`; failed requests fall back to demo data with an in-app toast.
-
-**Production build & preview:**
-
-```bash
-cd frontend && npm run build && npm run preview
-```
-
-Adjust `cd` paths if your layout differs (e.g. notebooks at repo root).
-
 ---
 
 ## References (implementation)
 
 - Lützow, N. & Veh, G. — GLOF Database v3.0. [DOI 10.5281/zenodo.7330345](https://doi.org/10.5281/zenodo.7330345)  
 - Lundberg & Lee (2017) — SHAP / TreeSHAP  
-- Background context: [resources/information.md](resources/information.md)
+- Domain context: [resources/information.md](resources/information.md)

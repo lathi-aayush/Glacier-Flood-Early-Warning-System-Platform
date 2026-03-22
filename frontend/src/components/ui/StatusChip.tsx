@@ -21,6 +21,21 @@ export function StatusChip({ children, className = '' }: StatusChipProps) {
   )
 }
 
+/** Tier label only — no numeric score (dashboard list) */
+export function TierBadge({ tier }: { tier: Tier }) {
+  const label =
+    tier === 'critical' ? 'CRITICAL' : tier === 'high' ? 'HIGH' : tier === 'advisory' ? 'ADVISORY' : 'SAFE'
+  const cls =
+    tier === 'critical'
+      ? 'bg-error/20 text-error'
+      : tier === 'high'
+        ? 'bg-primary/15 text-primary'
+        : tier === 'advisory'
+          ? 'bg-secondary-container/30 text-secondary'
+          : 'bg-on-surface-variant/20 text-on-surface-variant'
+  return <StatusChip className={`${cls} !px-2.5 !py-1 !text-xs`.trim()}>{label}</StatusChip>
+}
+
 export function RiskTierChip({ tier, score }: { tier: Tier; score: number }) {
   const label = `${Math.round(score)}/100`
   const cls =

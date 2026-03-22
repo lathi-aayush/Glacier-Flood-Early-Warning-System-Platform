@@ -66,7 +66,6 @@ export function DashboardMap({ lakes, selectedId, onSelectLake }: DashboardMapPr
           >
             <Tooltip direction="top" offset={[0, -8]} opacity={0.95} permanent={false}>
               <span className="font-headline text-xs">{lake.name}</span>
-              <span className="block font-mono text-[10px]">RISK {Math.round(lake.riskScore)}</span>
             </Tooltip>
           </CircleMarker>
         )

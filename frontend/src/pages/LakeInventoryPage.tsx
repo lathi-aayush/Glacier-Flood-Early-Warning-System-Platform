@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { InventoryRiskChip } from '@/components/ui/StatusChip'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useLakeSelection } from '@/hooks/useLakeSelection'
+import { useToast } from '@/hooks/useToast'
+import { openLakeInventoryPrintWindow } from '@/lib/inventoryPdfPrint'
 import type { Lake } from '@/types/lake'
 
 function tierSort(a: Lake, b: Lake) {
@@ -12,6 +14,7 @@ function tierSort(a: Lake, b: Lake) {
 
 export function LakeInventoryPage() {
   const navigate = useNavigate()
+  const { pushToast } = useToast()
   const { lakes, lakesLoading, dataSource } = useLakeSelection()
   const [query, setQuery] = useState('')
   const [basin, setBasin] = useState<string>('all')
@@ -32,6 +35,45 @@ export function LakeInventoryPage() {
     }
     return list
   }, [lakes, query, basin])
+
+  const handleExportPdf = useCallback(async () => {
+    if (lakesLoading) {
+      pushToast({ message: 'Wait for the lake list to finish loading.', variant: 'info' })
+      return
+    }
+    if (rows.length === 0) {
+      pushToast({ message: 'No lakes match the current filters — nothing to export.', variant: 'warning' })
+      return
+    }
+    const basinLabel = basin === 'all' ? 'All basins' : basin.charAt(0).toUpperCase() + basin.slice(1)
+    try {
+      const result = await openLakeInventoryPrintWindow(rows, {
+        dataSourceLabel: dataSource === 'api' ? 'API' : 'demo',
+        basinFilter: basinLabel,
+        searchQuery: query,
+      })
+      if (result === 'failed') {
+        pushToast({
+          message: 'Could not export. Try another browser or check download permissions.',
+          variant: 'error',
+        })
+        return
+      }
+      if (result === 'download') {
+        pushToast({
+          message: 'Saved inventory as an HTML file. Open it and use Print → Save as PDF.',
+          variant: 'info',
+        })
+        return
+      }
+      pushToast({
+        message: 'Print dialog opened — choose Save as PDF or a printer.',
+        variant: 'info',
+      })
+    } catch {
+      pushToast({ message: 'Export failed.', variant: 'error' })
+    }
+  }, [basin, dataSource, lakesLoading, pushToast, query, rows])
 
   return (
     <AppShell mainClassName="min-h-0 flex-1 overflow-y-auto pt-0">
@@ -85,7 +127,13 @@ export function LakeInventoryPage() {
               </button>
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-on-primary transition-all hover:brightness-110 active:scale-95"
+                onClick={handleExportPdf}
+                disabled={lakesLoading}
+                className={[
+                  'flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-on-primary transition-all hover:brightness-110 active:scale-95',
+                  lakesLoading ? 'cursor-not-allowed opacity-60' : '',
+                ].join(' ')}
+                aria-label="Export filtered inventory to PDF via print dialog"
               >
                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden>
                   picture_as_pdf

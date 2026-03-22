@@ -1,12 +1,14 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { Card } from '@/components/ui/Card'
 import { MonoValue } from '@/components/ui/MonoValue'
-import { RiskTierChip } from '@/components/ui/StatusChip'
+import { TierBadge } from '@/components/ui/StatusChip'
 import { SectionLabel } from '@/components/ui/SectionLabel'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useLakeSelection } from '@/hooks/useLakeSelection'
+import { useToast } from '@/hooks/useToast'
+import { openSitRepPrintWindow } from '@/lib/sitrepPrint'
 import type { Lake } from '@/types/lake'
 
 const DashboardMap = lazy(() =>
@@ -18,18 +20,15 @@ function tierFilterMatch(lake: Lake, filter: string): boolean {
   return lake.tier === filter
 }
 
-function scoreArc(score: number) {
-  const c = 2 * Math.PI * 34
-  const pct = Math.min(100, Math.max(0, score)) / 100
-  return { c, offset: c * (1 - pct) }
-}
-
 export function DashboardPage() {
-  const { lakes, lakesLoading, dataSource, selectedId, selectedLake, setSelectedId, syncFromRouteLakeParam } =
+  const { lakes, lakesLoading, selectedId, selectedLake, setSelectedId, syncFromRouteLakeParam } =
     useLakeSelection()
+  const { pushToast } = useToast()
   const [searchParams] = useSearchParams()
   const [sidebarQuery, setSidebarQuery] = useState('')
   const [tierFilter, setTierFilter] = useState<string>('all')
+  /** Session-only: operator acknowledged the critical alert for a given lake */
+  const [acknowledgedByLakeId, setAcknowledgedByLakeId] = useState<Record<string, true>>({})
 
   useEffect(() => {
     const q = searchParams.get('lake')
@@ -49,26 +48,66 @@ export function DashboardPage() {
     })
   }, [lakes, sidebarQuery, tierFilter])
 
-  const arc = scoreArc(selectedLake.riskScore)
+  const criticalNeedsAck =
+    selectedLake.tier === 'critical' && !acknowledgedByLakeId[selectedLake.id]
 
-  const banner =
-    selectedLake.tier === 'critical' ? (
-      <div className="flex w-full shrink-0 animate-pulse items-center justify-between border-b border-error/30 bg-error-container/20 px-6 py-2 text-error">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined font-bold">warning</span>
-          <span className="font-headline font-bold tracking-tight">
-            CRITICAL ALERT — {selectedLake.name} — Risk Score: {Math.round(selectedLake.riskScore)} — SMS
-            dispatched to {selectedLake.smsSent} contacts — 6h window active
-          </span>
-        </div>
-        <button
-          type="button"
-          className="rounded bg-error px-3 py-1 text-xs font-bold uppercase tracking-tighter text-on-error"
-        >
-          Acknowledge
-        </button>
+  const handleAcknowledge = useCallback(() => {
+    if (selectedLake.tier !== 'critical') {
+      pushToast({ message: 'No critical alert to acknowledge for this lake.', variant: 'info' })
+      return
+    }
+    if (acknowledgedByLakeId[selectedLake.id]) {
+      pushToast({ message: 'This alert was already acknowledged.', variant: 'info' })
+      return
+    }
+    setAcknowledgedByLakeId((m) => ({ ...m, [selectedLake.id]: true }))
+    pushToast({ message: `Alert acknowledged for ${selectedLake.name}.`, variant: 'success' })
+  }, [acknowledgedByLakeId, pushToast, selectedLake.id, selectedLake.name, selectedLake.tier])
+
+  const handleSitRepPdf = useCallback(async () => {
+    try {
+      const result = await openSitRepPrintWindow(selectedLake)
+      if (result === 'failed') {
+        pushToast({
+          message: 'Could not export the SitRep. Try another browser or check download permissions.',
+          variant: 'error',
+        })
+        return
+      }
+      if (result === 'download') {
+        pushToast({
+          message: 'Saved SitRep as an HTML file. Open it and use Print → Save as PDF.',
+          variant: 'info',
+        })
+        return
+      }
+      pushToast({
+        message: 'Print dialog opened — choose Save as PDF or a printer.',
+        variant: 'info',
+      })
+    } catch {
+      pushToast({ message: 'SitRep export failed.', variant: 'error' })
+    }
+  }, [pushToast, selectedLake])
+
+  const banner = criticalNeedsAck ? (
+    <div className="flex w-full shrink-0 animate-pulse items-center justify-between border-b border-error/30 bg-error-container/20 px-6 py-2 text-error">
+      <div className="flex items-center gap-3">
+        <span className="material-symbols-outlined font-bold">warning</span>
+        <span className="font-headline font-bold tracking-tight">
+          CRITICAL ALERT — {selectedLake.name} — SMS dispatched to {selectedLake.smsSent} contacts — 6h window
+          active
+        </span>
       </div>
-    ) : null
+      <button
+        type="button"
+        onClick={handleAcknowledge}
+        className="rounded bg-error px-3 py-1 text-xs font-bold uppercase tracking-tighter text-on-error"
+      >
+        Acknowledge
+      </button>
+    </div>
+  ) : null
 
   return (
     <AppShell banner={banner} mainClassName="relative flex min-h-0 flex-1 overflow-hidden">
@@ -123,11 +162,7 @@ export function DashboardPage() {
             <p className="text-[10px] uppercase tracking-widest text-on-surface-variant" role="status">
               Syncing lake index…
             </p>
-          ) : (
-            <p className="text-[10px] uppercase tracking-widest text-outline">
-              Data: {dataSource === 'api' ? 'API' : 'demo'}
-            </p>
-          )}
+          ) : null}
         </div>
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4">
           {lakesLoading ? (
@@ -156,15 +191,7 @@ export function DashboardPage() {
                         Node ID: {lake.nodeId}
                       </p>
                     </div>
-                    <RiskTierChip tier={lake.tier} score={lake.riskScore} />
-                  </div>
-                  <div className="flex h-8 items-end gap-[2px]">
-                    <div className="relative h-2 w-full flex-grow overflow-hidden rounded-full bg-error/10">
-                      <div
-                        className="absolute inset-0 bg-error"
-                        style={{ width: `${Math.min(100, lake.riskScore)}%` }}
-                      />
-                    </div>
+                    <TierBadge tier={lake.tier} />
                   </div>
                 </button>
               )
@@ -182,94 +209,32 @@ export function DashboardPage() {
         >
           <DashboardMap lakes={lakes} selectedId={selectedId} onSelectLake={setSelectedId} />
         </Suspense>
-        <div className="pointer-events-none absolute left-4 right-4 top-4 flex justify-between">
-          <div className="pointer-events-auto flex gap-1 rounded-lg border border-outline-variant/10 bg-surface-container-high/80 p-1 backdrop-blur-md">
-            {['Lakes', 'Flood Paths', 'Villages', 'Rainfall Overlay'].map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                className={[
-                  'rounded px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest',
-                  i === 0 ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface',
-                ].join(' ')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="pointer-events-auto rounded-lg border border-outline-variant/10 bg-surface-container-high/80 p-3 backdrop-blur-md">
-            <SectionLabel className="mb-2 tracking-tighter text-outline">Coordinates</SectionLabel>
-            <MonoValue size="md" className="text-primary">
+        <div className="pointer-events-none absolute right-4 top-4 flex justify-end">
+          <div className="pointer-events-auto rounded-lg border border-outline-variant/10 bg-surface-container-high/80 p-4 backdrop-blur-md">
+            <SectionLabel className="mb-2 !text-xs tracking-tighter text-outline">Coordinates</SectionLabel>
+            <MonoValue size="md" className="!text-sm text-primary">
               {selectedLake.lat.toFixed(4)}° N, {selectedLake.lng.toFixed(4)}° E
             </MonoValue>
           </div>
         </div>
-        <div className="pointer-events-none absolute bottom-6 left-6 max-w-xs rounded-xl border border-outline-variant/20 bg-surface-container-high/90 p-4 backdrop-blur-md">
-          <SectionLabel as="h3" className="mb-3 text-primary tracking-widest">
-            Downstream impact model
-          </SectionLabel>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-12 rounded-full bg-gradient-to-r from-error to-error/20" />
-              <span className="text-[10px] font-medium text-on-surface-variant">HIGH VELOCITY INUNDATION</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-12 rounded-full bg-gradient-to-r from-primary to-primary/20" />
-              <span className="text-[10px] font-medium text-on-surface-variant">SECONDARY SATURATION ZONE</span>
-            </div>
-          </div>
-        </div>
       </section>
       <aside className="z-40 flex w-[30%] min-w-[380px] flex-col overflow-y-auto bg-surface">
-        <div className="space-y-6 p-6">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <h2 className="font-headline text-2xl font-extrabold tracking-tighter">{selectedLake.name}</h2>
-              <div>
-                <SectionLabel className="mb-0.5 block text-outline tracking-widest">Global Watch ID</SectionLabel>
-                <MonoValue size="sm" className="text-on-surface-variant">
-                  {selectedLake.watchId}
-                </MonoValue>
-              </div>
+        <div className="space-y-8 p-6 md:p-7">
+          <div className="space-y-3">
+            <h2 className="font-headline text-3xl font-extrabold tracking-tighter md:text-4xl">{selectedLake.name}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <TierBadge tier={selectedLake.tier} />
             </div>
-            <div className="relative flex h-20 w-20 items-center justify-center">
-              <svg className="h-full w-full -rotate-90" viewBox="0 0 80 80">
-                <circle className="text-surface-container-high" cx="40" cy="40" r="34" fill="transparent" stroke="currentColor" strokeWidth="6" />
-                <circle
-                  className="text-error"
-                  cx="40"
-                  cy="40"
-                  r="34"
-                  fill="transparent"
-                  stroke="currentColor"
-                  strokeWidth="6"
-                  strokeDasharray={arc.c}
-                  strokeDashoffset={arc.offset}
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center">
-                <span className="font-headline text-2xl font-bold leading-none">{Math.round(selectedLake.riskScore)}</span>
-                <span className="text-[8px] font-bold uppercase text-error">Score</span>
-              </div>
+            <div>
+              <SectionLabel className="mb-1 block !text-xs text-outline tracking-widest">Global Watch ID</SectionLabel>
+              <MonoValue size="md" className="!text-sm text-on-surface-variant">
+                {selectedLake.watchId}
+              </MonoValue>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="rounded-lg border-b border-error/50 bg-surface-container-lowest p-3">
-              <div className="mb-1 text-[9px] font-bold uppercase text-outline">72h Pred</div>
-              <div className="font-headline text-lg font-bold text-secondary">{selectedLake.predictions.h72}</div>
-            </div>
-            <div className="rounded-lg border-b border-error/70 bg-surface-container-lowest p-3">
-              <div className="mb-1 text-[9px] font-bold uppercase text-outline">24h Pred</div>
-              <div className="font-headline text-lg font-bold text-error">{selectedLake.predictions.h24}</div>
-            </div>
-            <div className="rounded-lg border-b-2 border-error bg-surface-container-lowest p-3">
-              <div className="mb-1 text-[9px] font-bold uppercase text-outline">6h Pred</div>
-              <div className="font-headline text-lg font-bold text-error">{selectedLake.predictions.h6}</div>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <SectionLabel className="text-primary tracking-[0.2em]">Live telemetry signals</SectionLabel>
-            <div className="space-y-3">
+          <div className="space-y-5">
+            <SectionLabel className="!text-xs text-primary tracking-[0.2em]">Live telemetry signals</SectionLabel>
+            <div className="space-y-4">
               <TelemetryRow label="Water level change" value={`+${selectedLake.telemetry.waterLevelMPerHr}m / hr`} valueClass="text-error" pct={0.8} barClass="bg-error" />
               <TelemetryRow
                 label="Seismic activity (local)"
@@ -287,18 +252,18 @@ export function DashboardPage() {
               />
             </div>
           </div>
-          <Card variant="inset" ghostBorder className="space-y-3 p-4">
-            <SectionLabel className="text-on-tertiary-fixed-variant tracking-widest">
+          <Card variant="inset" ghostBorder className="space-y-4 p-5">
+            <SectionLabel className="!text-xs text-on-tertiary-fixed-variant tracking-widest">
               AI decision rationale (SHAP)
             </SectionLabel>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {selectedLake.shap.map((row) => (
-                <div key={row.feature} className="flex items-center gap-2">
-                  <span className="w-16 font-mono text-[10px] text-outline">{row.feature}</span>
-                  <div className="flex flex-grow items-center">
+                <div key={row.feature} className="flex items-center gap-3">
+                  <span className="w-20 shrink-0 font-mono text-xs text-outline">{row.feature}</span>
+                  <div className="flex min-w-0 flex-grow items-center">
                     <div
                       className={[
-                        'h-3 rounded-sm',
+                        'h-4 rounded-sm',
                         row.direction === 'up' ? 'rounded-r-sm bg-error' : 'rounded-l-sm bg-secondary',
                       ].join(' ')}
                       style={{ width: `${Math.min(100, Math.abs(row.value) * 400)}%` }}
@@ -306,7 +271,7 @@ export function DashboardPage() {
                   </div>
                   <span
                     className={[
-                      'font-mono text-[10px]',
+                      'shrink-0 font-mono text-xs tabular-nums',
                       row.direction === 'up' ? 'text-error' : 'text-secondary',
                     ].join(' ')}
                   >
@@ -316,71 +281,69 @@ export function DashboardPage() {
                 </div>
               ))}
             </div>
-            <MonoValue size="sm" className="mt-3 block leading-relaxed text-on-surface-variant">
-              MODEL DETERMINATION: screening score driven by precipitation windows, thermal context, and lake-area
-              deltas — indicative only; not operational hazard guidance.
-            </MonoValue>
+            <p className="mt-4 font-mono text-sm leading-relaxed text-on-surface-variant">
+              MODEL DETERMINATION: driven by precipitation windows, thermal context, and lake-area deltas —
+              indicative only; not operational hazard guidance.
+            </p>
           </Card>
-          <div className="space-y-3">
-            <SectionLabel className="text-primary tracking-widest">Flood impact projection</SectionLabel>
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-outline-variant/20 text-[9px] uppercase text-outline">
-                  <th className="py-2 text-left font-bold">Time band</th>
-                  <th className="py-2 text-left font-bold">Village</th>
-                  <th className="py-2 text-right font-bold">Pop. at risk</th>
-                </tr>
-              </thead>
-              <tbody className="font-mono text-on-surface-variant">
-                {selectedLake.floodProjection.map((row) => (
-                  <tr key={row.village + row.timeBand} className="border-b border-outline-variant/10">
-                    <td
-                      className={[
-                        'py-2 font-bold',
-                        row.urgency === 'critical'
-                          ? 'text-error'
-                          : row.urgency === 'elevated'
-                            ? 'text-secondary'
-                            : 'text-on-surface-variant',
-                      ].join(' ')}
-                    >
-                      {row.timeBand}
-                    </td>
-                    <td className="py-2">{row.village}</td>
-                    <td className="py-2 text-right">{row.popAtRisk.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="space-y-4 rounded-xl border border-error/20 bg-error-container/10 p-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-5 rounded-xl border border-error/20 bg-error-container/10 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-error" />
-                <span className="text-[11px] font-bold uppercase text-error">
-                  Escalation level: {selectedLake.escalationLevel} (max 4)
+                <span
+                  className={[
+                    'h-2.5 w-2.5 rounded-full',
+                    selectedLake.tier === 'critical' && !acknowledgedByLakeId[selectedLake.id]
+                      ? 'animate-pulse bg-error'
+                      : 'bg-secondary',
+                  ].join(' ')}
+                />
+                <span
+                  className={[
+                    'text-sm font-bold uppercase tracking-tight',
+                    selectedLake.tier === 'critical' && !acknowledgedByLakeId[selectedLake.id]
+                      ? 'text-error'
+                      : 'text-on-surface-variant',
+                  ].join(' ')}
+                >
+                  {acknowledgedByLakeId[selectedLake.id] && selectedLake.tier === 'critical'
+                    ? 'Alert acknowledged (this session)'
+                    : `Escalation level: ${selectedLake.escalationLevel} (max 4)`}
                 </span>
               </div>
-              <MonoValue size="sm" className="text-on-surface-variant">
+              <MonoValue size="md" className="!text-sm text-on-surface-variant">
                 SMS: {selectedLake.smsSent} sent
               </MonoValue>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                className="flex items-center justify-center gap-2 rounded border border-outline-variant/30 bg-surface-container-high py-2 text-[10px] font-bold uppercase transition-colors hover:bg-surface-container-highest"
-                aria-label="Export situation report PDF"
+                onClick={handleSitRepPdf}
+                className="flex items-center justify-center gap-2 rounded border border-outline-variant/30 bg-surface-container-high py-3 text-xs font-bold uppercase tracking-wide transition-colors hover:bg-surface-container-highest"
+                aria-label="Open situation report for print or save as PDF"
               >
-                <span className="material-symbols-outlined text-sm" aria-hidden>
+                <span className="material-symbols-outlined text-lg" aria-hidden>
                   picture_as_pdf
                 </span>
                 SitRep PDF
               </button>
               <button
                 type="button"
-                className="rounded bg-primary py-2 text-[10px] font-bold uppercase text-on-primary transition-all hover:brightness-110"
+                onClick={handleAcknowledge}
+                disabled={
+                  selectedLake.tier !== 'critical' || (selectedLake.tier === 'critical' && !!acknowledgedByLakeId[selectedLake.id])
+                }
+                className={[
+                  'rounded py-3 text-xs font-bold uppercase tracking-wide transition-all',
+                  selectedLake.tier !== 'critical' || !!acknowledgedByLakeId[selectedLake.id]
+                    ? 'cursor-not-allowed bg-surface-container-high text-on-surface-variant/50'
+                    : 'bg-primary text-on-primary hover:brightness-110',
+                ].join(' ')}
               >
-                Acknowledge
+                {selectedLake.tier !== 'critical'
+                  ? 'N/A'
+                  : acknowledgedByLakeId[selectedLake.id]
+                    ? 'Acknowledged'
+                    : 'Acknowledge'}
               </button>
             </div>
           </div>
@@ -404,12 +367,14 @@ function TelemetryRow({
   barClass: string
 }) {
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-[11px] font-medium">
+    <div className="space-y-2">
+      <div className="flex justify-between gap-4 text-sm font-medium">
         <span className="text-on-surface-variant">{label}</span>
-        <MonoValue className={valueClass}>{value}</MonoValue>
+        <MonoValue size="md" className={`!text-base font-semibold ${valueClass}`.trim()}>
+          {value}
+        </MonoValue>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-surface-container-high">
+      <div className="h-2 overflow-hidden rounded-full bg-surface-container-high">
         <div className={`h-full ${barClass}`} style={{ width: `${pct * 100}%` }} />
       </div>
     </div>

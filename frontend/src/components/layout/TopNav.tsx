@@ -31,9 +31,6 @@ export function TopNav() {
           <NavLink to="/replay" className={navClass}>
             Historical replay
           </NavLink>
-          <NavLink to="/resources" className={navClass}>
-            Context
-          </NavLink>
         </nav>
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           <div className="hidden text-right lg:block">
@@ -91,14 +88,6 @@ export function TopNav() {
           }
         >
           Replay
-        </NavLink>
-        <NavLink
-          to="/resources"
-          className={({ isActive }) =>
-            `shrink-0 rounded px-2 py-1 ${isActive ? 'bg-primary/20 text-primary' : 'text-on-surface-variant'}`
-          }
-        >
-          Context
         </NavLink>
       </nav>
     </header>

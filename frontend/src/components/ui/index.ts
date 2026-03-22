@@ -6,6 +6,7 @@ export {
   InventoryRiskChip,
   RiskTierChip,
   StatusChip,
+  TierBadge,
 } from '@/components/ui/StatusChip'
 export { DataRow } from '@/components/ui/DataRow'
 export { MonoValue } from '@/components/ui/MonoValue'
