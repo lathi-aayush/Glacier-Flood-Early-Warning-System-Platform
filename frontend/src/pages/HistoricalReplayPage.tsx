@@ -88,7 +88,7 @@ export function HistoricalReplayPage() {
           <Suspense
             fallback={<div className="flex h-full items-center justify-center text-on-surface-variant">Loading map…</div>}
           >
-            <ReplayMap lakeLat={meta.lakeLat} lakeLng={meta.lakeLng} pathOpacity={sample.pathOpacity} />
+            <ReplayMap lakeLat={meta.lakeLat} lakeLng={meta.lakeLng} pathOpacity={sample.pathOpacity} lakeId="gl-00124" />
           </Suspense>
           <div className="pointer-events-none absolute left-8 top-8 space-y-4">
             <div className="w-64 border-l-2 border-primary bg-surface-container/80 p-4 backdrop-blur-md">

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "concurrently -k -n \"backend,frontend\" -c \"yellow.bold,cyan.bold\" \"..\\backend\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --reload-dir ..\\backend --port 8000 --app-dir ..\" \"vite\"",
+    "backend": "..\\backend\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --reload-dir ..\\backend --port 8000 --app-dir ..",
     "start": "vite",
     "online": "concurrently -k \"vite\" \"npx --yes localtunnel --port 5173\" --names \"5173,tunnel\" --prefix-colors cyan,magenta",
     "build": "tsc -b && vite build",
@@ -19,7 +21,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

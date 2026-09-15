@@ -8,6 +8,7 @@ import { MonoValue } from '@/components/ui/MonoValue'
 import { useAlertsQuery } from '@/hooks/useAlertsQuery'
 import { useToast } from '@/hooks/useToast'
 import { openAlertLogPrintWindow } from '@/lib/alertLogPdfPrint'
+import { exportAlertsToCsv } from '@/lib/csvExport'
 import type { AlertEntry } from '@/types/alert'
 
 function severityStripe(sev: AlertEntry['severity']) {
@@ -44,6 +45,23 @@ export function AlertLogPage() {
       return next
     })
   }, [])
+
+  const handleExportCsv = useCallback(() => {
+    if (loading) {
+      pushToast({ message: 'Wait for alerts to finish loading.', variant: 'info' })
+      return
+    }
+    if (filtered.length === 0) {
+      pushToast({ message: 'No alerts match the current filter — nothing to export.', variant: 'warning' })
+      return
+    }
+    try {
+      exportAlertsToCsv(filtered)
+      pushToast({ message: `Exported ${filtered.length} alert records to CSV.`, variant: 'success' })
+    } catch {
+      pushToast({ message: 'Export failed.', variant: 'error' })
+    }
+  }, [filtered, loading, pushToast])
 
   const handleExportPdf = useCallback(async () => {
     if (loading) {
@@ -118,10 +136,25 @@ export function AlertLogPage() {
             </div>
             <button
               type="button"
+              onClick={handleExportCsv}
+              disabled={loading}
+              className={[
+                'flex items-center gap-2 rounded-md bg-surface-container-high px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-surface transition-all hover:bg-surface-bright active:scale-95',
+                loading ? 'cursor-not-allowed opacity-60' : '',
+              ].join(' ')}
+              aria-label="Export filtered reports to CSV spreadsheet"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden>
+                download
+              </span>
+              Export CSV
+            </button>
+            <button
+              type="button"
               onClick={handleExportPdf}
               disabled={loading}
               className={[
-                'flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-primary transition-all hover:brightness-110',
+                'flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-primary transition-all hover:brightness-110 active:scale-95',
                 loading ? 'cursor-not-allowed opacity-60' : '',
               ].join(' ')}
               aria-label="Export filtered reports to PDF via print dialog"

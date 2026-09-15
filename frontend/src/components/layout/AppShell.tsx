@@ -11,7 +11,7 @@ type AppShellProps = {
 
 export function AppShell({ children, banner, mainClassName }: AppShellProps) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-on-surface">
+    <div className="flex h-dvh max-h-dvh w-full flex-col bg-background text-on-surface overflow-hidden">
       <TopNav />
       {banner}
       <main className={mainClassName ?? 'flex min-h-0 flex-1 flex-col overflow-hidden'}>{children}</main>

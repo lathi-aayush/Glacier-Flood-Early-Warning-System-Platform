@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useLakeSelection } from '@/hooks/useLakeSelection'
 import { useToast } from '@/hooks/useToast'
 import { openLakeInventoryPrintWindow } from '@/lib/inventoryPdfPrint'
+import { exportLakesToCsv } from '@/lib/csvExport'
 import type { Lake } from '@/types/lake'
 
 function tierSort(a: Lake, b: Lake) {
@@ -35,6 +36,23 @@ export function LakeInventoryPage() {
     }
     return list
   }, [lakes, query, basin])
+
+  const handleExportCsv = useCallback(() => {
+    if (lakesLoading) {
+      pushToast({ message: 'Wait for the lake list to finish loading.', variant: 'info' })
+      return
+    }
+    if (rows.length === 0) {
+      pushToast({ message: 'No lakes match the current filters — nothing to export.', variant: 'warning' })
+      return
+    }
+    try {
+      exportLakesToCsv(rows)
+      pushToast({ message: `Exported ${rows.length} lake records to CSV.`, variant: 'success' })
+    } catch {
+      pushToast({ message: 'Export failed.', variant: 'error' })
+    }
+  }, [lakesLoading, pushToast, rows])
 
   const handleExportPdf = useCallback(async () => {
     if (lakesLoading) {
@@ -115,10 +133,20 @@ export function LakeInventoryPage() {
                 <option value="koshi">Koshi</option>
                 <option value="sutlej">Sutlej</option>
                 <option value="chenab">Chenab</option>
+                <option value="indus">Indus</option>
+                <option value="jhelum">Jhelum</option>
+                <option value="ganga">Ganga</option>
+                <option value="brahmaputra">Brahmaputra</option>
               </select>
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-md bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface transition-all hover:bg-surface-bright"
+                onClick={handleExportCsv}
+                disabled={lakesLoading}
+                className={[
+                  'flex items-center gap-2 rounded-md bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface transition-all hover:bg-surface-bright active:scale-95',
+                  lakesLoading ? 'cursor-not-allowed opacity-60' : '',
+                ].join(' ')}
+                aria-label="Export filtered inventory to CSV spreadsheet"
               >
                 <span className="material-symbols-outlined text-sm" aria-hidden>
                   download

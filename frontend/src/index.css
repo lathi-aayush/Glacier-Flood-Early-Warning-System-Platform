@@ -64,14 +64,19 @@
 }
 
 @layer base {
-  body {
+  html, body {
     @apply bg-background text-on-surface font-body antialiased;
     margin: 0;
-    min-height: 100dvh;
+    padding: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 
   #root {
-    min-height: 100dvh;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 
   /* Phase 9 — visible focus on dark surfaces */
@@ -117,3 +122,4 @@
   background: var(--color-surface-container-lowest);
   font-family: var(--font-body);
 }
+
