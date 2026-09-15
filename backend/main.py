@@ -46,11 +46,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS for frontend access (Cloudflare Pages, Render, local dev)
+# Configure CORS for frontend access (custom domains, Cloudflare, Render, local dev)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_origin_regex=r"^https://.*\.(pages\.dev|workers\.dev|onrender\.com)$|^http://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=settings.cors_origin_list + ["https://glacierguard.lathiaayush.com", "https://glacierguard.lathiaayush.workers.dev"],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

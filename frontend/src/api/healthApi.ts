@@ -21,7 +21,7 @@ export interface SystemHealthResponse {
 
 export async function fetchSystemHealth(): Promise<SystemHealthResponse> {
   const base = getApiBaseUrl().replace(/\/$/, '')
-  const url = `${base}/health`
+  const url = `${base}/status`
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 12000)
 

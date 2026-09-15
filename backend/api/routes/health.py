@@ -8,6 +8,8 @@ from backend.workers.satellite_sync import satellite_sync_status
 router = APIRouter()
 
 @router.get("/health")
+@router.get("/status")
+@router.get("/api-status")
 def health_check(db: Session = Depends(get_db)):
     db_status = "ok"
     try:
