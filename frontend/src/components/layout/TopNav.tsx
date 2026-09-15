@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { SystemStatusButton } from '@/components/layout/SystemStatusButton'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   [
@@ -37,14 +38,8 @@ export function TopNav() {
             <div className="font-medium leading-none text-primary">NDRF Operator</div>
             <div className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">2 min ago</div>
           </div>
-          <div className="flex gap-1 sm:gap-2">
-            <button
-              type="button"
-              className="rounded p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
-              aria-label="Settings"
-            >
-              <span className="material-symbols-outlined">settings</span>
-            </button>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <SystemStatusButton />
             <button
               type="button"
               className="rounded p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
