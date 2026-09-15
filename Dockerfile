@@ -8,9 +8,12 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/ .
+# Copy backend package into /app/backend to preserve python module imports (backend.core, etc.)
+COPY backend/ ./backend/
+
+ENV PYTHONPATH=/app
 
 EXPOSE 10000
 
-# Render sets $PORT; default 10000
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000}"]
+# Render sets $PORT; run uvicorn with module backend.main:app
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
