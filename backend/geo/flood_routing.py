@@ -311,7 +311,7 @@ LAKE_GEO_PROFILES: Dict[str, Dict[str, Any]] = {
         "lake_name": "Thorthormi Lake Complex",
         "outlet_elev_m": 4420,
         "lake_polygon": [
-            [77.7220, 28.1580],
+            [90.2380, 28.1580],
             [90.2550, 28.1700],
             [90.2600, 28.1650],
             [90.2450, 28.1520],

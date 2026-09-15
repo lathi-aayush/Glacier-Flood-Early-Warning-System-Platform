@@ -150,7 +150,21 @@ export interface LakeFloodPathGeoJson {
 
 export async function fetchLakeFloodPath(lakeId: string): Promise<LakeFloodPathGeoJson | null> {
   try {
-    return await apiGetJson<LakeFloodPathGeoJson>(`/lakes/${encodeURIComponent(lakeId)}/flood-path`)
+    const data = await apiGetJson<LakeFloodPathGeoJson>(`/lakes/${encodeURIComponent(lakeId)}/flood-path`)
+    if (data?.features) {
+      for (const feature of data.features) {
+        if (feature.geometry?.type === 'Polygon' && Array.isArray(feature.geometry.coordinates?.[0])) {
+          feature.geometry.coordinates[0] = (feature.geometry.coordinates[0] as [number, number][]).map(([lng, lat]) => {
+            // Fix Thorthormi Lake Complex stale backend coordinate (77.722 -> 90.238)
+            if (lakeId === 'gl-00504' && Math.abs(lng - 77.722) < 0.5) {
+              return [90.2380, lat]
+            }
+            return [lng, lat]
+          })
+        }
+      }
+    }
+    return data
   } catch {
     return null
   }
