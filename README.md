@@ -3,7 +3,7 @@
 
 ## Dashboard
 
-![GlacierGuard dashboard](project_demo/dashboard.jpg)
+![GlacierGuard dashboard](project_demo/dashboard.png)
 
 ---
 
